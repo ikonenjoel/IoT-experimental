@@ -21,9 +21,9 @@ MFRC522DriverSPI driver{ss_pin};
 MFRC522 mfrc522{driver};
 
 // Replace with your development machine's local IP address and port
-const char* serverName = "http://192.168.1.39:8000/log_messages.php";
-const char* ssid = "Replace me";
-const char* password = "Replace me";
+const char* serverName = "http://34.226.214.153/backend.php";
+const char* ssid = "Replace-with-SSID";
+const char* password = "Replace-with-SSID-password";
 
 // Helper function to set RGB LED colors
 void setLED(bool red, bool green, bool blue) {
