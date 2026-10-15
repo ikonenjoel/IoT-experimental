@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID Access Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a sleeker look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-300 font-sans min-h-screen">
+
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700 pb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+                    <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    RFID Access Control
+                </h1>
+                <p class="text-slate-400 mt-1">Manage tags, monitor access, and handle unrecognised scans.</p>
+            </div>
+            <div id="system-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-sm">
+                <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                System Online
+            </div>
+        </header>
+
+        <!-- Notification Toast -->
+        <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+        <!-- Main Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column: Simulator & Authorized Tags -->
+            <div class="space-y-6 lg:col-span-1">
+                
+                <!-- RFID Simulator Card -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg">
+                    <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
+                        Scan Simulator
+                    </h2>
+                    <form id="simulator-form" class="space-y-4">
+                        <div>
+                            <label for="simulate-uid" class="block text-sm font-medium text-slate-400 mb-1">Enter Tag UID</label>
+                            <input type="text" id="simulate-uid" name="uid" placeholder="e.g., 3DCEEA53" required
+                                class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 uppercase transition-colors">
+                        </div>
+                        <button type="submit" id="simulate-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center gap-2">
+                            <span>Simulate Scan</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Authorized Tags Card -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col h-auto">
+                    <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Authorized Tags
+                    </h2>
+                    <div class="flex-1 overflow-y-auto">
+                        <ul id="authorized-list" class="space-y-2">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Denied Management & Logs -->
+            <div class="space-y-6 lg:col-span-2">
+                
+                <!-- Failed Attempts Management (Needs Attention) -->
+                <div class="bg-slate-800 border border-rose-900/50 rounded-xl p-5 shadow-lg relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-rose-500"></div>
+                    <h2 class="text-xl font-semibold text-white mb-1 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Needs Attention: Unrecognized Tags
+                    </h2>
+                    <p class="text-sm text-slate-400 mb-4">Recently denied tags. Authorize them below to grant access.</p>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-900/50 text-slate-400">
+                                <tr>
+                                    <th class="px-4 py-2 font-medium rounded-l-lg">UID</th>
+                                    <th class="px-4 py-2 font-medium">Last Attempt</th>
+                                    <th class="px-4 py-2 font-medium text-right rounded-r-lg">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="failed-list" class="divide-y divide-slate-700/50">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="no-failed-message" class="text-center py-6 text-slate-500 hidden">
+                            No unrecognized tags recently.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Logs Table -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg">
+                    <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                        Access Logs
+                    </h2>
+                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto relative">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-900/80 text-slate-400 sticky top-0 backdrop-blur-sm">
+                                <tr>
+                                    <th class="px-4 py-3 font-medium rounded-tl-lg">Timestamp</th>
+                                    <th class="px-4 py-3 font-medium">UID</th>
+                                    <th class="px-4 py-3 font-medium rounded-tr-lg">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-list" class="divide-y divide-slate-700/50">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="no-logs-message" class="text-center py-8 text-slate-500">
+                            No access logs yet. Simulate a scan to see data.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ---------------------------------------------------------
+         * STATE MANAGEMENT
+         * ---------------------------------------------------------
+         */
+        // Pre-filled with the default authorized UID from your PHP script
+        let authorizedTags = ['3DCEEA53']; 
+        let accessLogs = [];
+        // Map to track failed attempts and their latest timestamp: Map<UID, Timestamp>
+        let failedAttempts = new Map(); 
+
+        /**
+         * ---------------------------------------------------------
+         * MOCKED API LAYER
+         * Replace these functions with actual fetch() calls to your PHP backend.
+         * ---------------------------------------------------------
+         */
+        const API = {
+            /**
+             * Simulate checking a UID against the backend.
+             * REAL IMPLEMENTATION EXAMPLE:
+             * async checkAccess(uid) {
+             *     const formData = new FormData();
+             *     formData.append('uid', uid);
+             *     const response = await fetch('YOUR_PHP_SCRIPT.php', { method: 'POST', body: formData });
+             *     return await response.json();
+             * }
+             */
+            async checkAccess(uid) {
+                uid = uid.toUpperCase().trim();
+                
+                // Simulate network latency
+                await new Promise(r => setTimeout(r, 400)); 
+
+                const isAuthorized = authorizedTags.includes(uid);
+                return {
+                    uid: uid,
+                    status: isAuthorized ? 'accepted' : 'denied',
+                    message: isAuthorized ? 'Access Granted' : 'Access Denied',
+                    timestamp: new Date()
+                };
+            },
+
+            /**
+             * Simulate adding a new UID to the backend whitelist.
+             * REAL IMPLEMENTATION EXAMPLE:
+             * async addTag(uid) {
+             *     const formData = new FormData();
+             *     formData.append('uid', uid);
+             *     // Assuming you create a new add_tag.php script
+             *     const response = await fetch('add_tag.php', { method: 'POST', body: formData });
+             *     return await response.json(); 
+             * }
+             */
+            async addTag(uid) {
+                uid = uid.toUpperCase().trim();
+                
+                await new Promise(r => setTimeout(r, 400));
+
+                if (!authorizedTags.includes(uid)) {
+                    authorizedTags.push(uid);
+                }
+                return {
+                    status: 'success',
+                    message: `Tag ${uid} authorized successfully.`
+                };
+            }
+        };
+
+        /**
+         * ---------------------------------------------------------
+         * UI RENDER FUNCTIONS
+         * ---------------------------------------------------------
+         */
+        
+        // Format date to YYYY-MM-DD HH:MM:SS
+        function formatDate(date) {
+            return date.toLocaleString('en-US', { 
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).replace(',', '');
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let colors = 'bg-slate-800 border-slate-700 text-white';
+            if (type === 'success') colors = 'bg-green-900/90 border-green-700 text-green-100';
+            if (type === 'error') colors = 'bg-rose-900/90 border-rose-700 text-rose-100';
+
+            toast.className = `px-4 py-3 rounded-lg shadow-lg border text-sm font-medium fade-in ${colors} flex items-center gap-2`;
+            toast.innerHTML = message;
+            
+            container.appendChild(toast);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                toast.style.transition = 'all 0.3s ease-in-out';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Render Authorized Tags
+        function renderAuthorizedTags() {
+            const list = document.getElementById('authorized-list');
+            list.innerHTML = '';
+            
+            authorizedTags.forEach(tag => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700/50 fade-in';
+                li.innerHTML = `
+                    <span class="font-mono text-slate-200">${tag}</span>
+                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded border border-green-500/20">Active</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // Render Failed Attempts
+        function renderFailedAttempts() {
+            const tbody = document.getElementById('failed-list');
+            const noMessage = document.getElementById('no-failed-message');
+            tbody.innerHTML = '';
+            
+            if (failedAttempts.size === 0) {
+                noMessage.classList.remove('hidden');
+            } else {
+                noMessage.classList.add('hidden');
+                
+                // Convert Map to Array and sort by newest first
+                const sortedFailures = Array.from(failedAttempts.entries()).sort((a, b) => b[1] - a[1]);
+
+                sortedFailures.forEach(([uid, timestamp]) => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-700/30 transition-colors fade-in';
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 font-mono text-slate-300">${uid}</td>
+                        <td class="px-4 py-3 text-slate-400 text-xs">${formatDate(timestamp)}</td>
+                        <td class="px-4 py-3 text-right">
+                            <button onclick="handleAuthorize('${uid}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded transition-colors shadow-sm">
+                                Authorize Tag
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // Render Access Logs
+        function renderLogs() {
+            const tbody = document.getElementById('logs-list');
+            const noMessage = document.getElementById('no-logs-message');
+            tbody.innerHTML = '';
+            
+            if (accessLogs.length === 0) {
+                noMessage.classList.remove('hidden');
+            } else {
+                noMessage.classList.add('hidden');
+                
+                accessLogs.forEach(log => {
+                    const isAccepted = log.status === 'accepted';
+                    const statusClass = isAccepted 
+                        ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                        : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+                    const statusText = isAccepted ? 'ACCEPTED' : 'DENIED';
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-700/30 transition-colors fade-in';
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 text-slate-400 text-xs">${formatDate(log.timestamp)}</td>
+                        <td class="px-4 py-3 font-mono text-slate-300">${log.uid}</td>
+                        <td class="px-4 py-3">
+                            <span class="text-[10px] font-bold px-2 py-1 rounded border tracking-wider ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        /**
+         * ---------------------------------------------------------
+         * EVENT HANDLERS
+         * ---------------------------------------------------------
+         */
+        
+        // Handle "Authorize Tag" button click
+        window.handleAuthorize = async function(uid) {
+            try {
+                // Call MOCK API
+                const response = await API.addTag(uid);
+                
+                if (response.status === 'success') {
+                    // Update state
+                    failedAttempts.delete(uid);
+                    
+                    // Re-render
+                    renderAuthorizedTags();
+                    renderFailedAttempts();
+                    
+                    showToast(response.message, 'success');
+                }
+            } catch (error) {
+                showToast('Error authorizing tag.', 'error');
+                console.error(error);
+            }
+        };
+
+        // Handle Scan Simulator Form Submit
+        document.getElementById('simulator-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const input = document.getElementById('simulate-uid');
+            const btn = document.getElementById('simulate-btn');
+            const uid = input.value;
+            
+            if (!uid) return;
+
+            // UI Feedback during request
+            btn.disabled = true;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Scanning...`;
+
+            try {
+                // Call MOCK API
+                const result = await API.checkAccess(uid);
+                
+                // Add to logs (at the top)
+                accessLogs.unshift({
+                    uid: result.uid,
+                    status: result.status,
+                    timestamp: result.timestamp
+                });
+
+                // Keep only last 50 logs to prevent infinite memory usage in browser
+                if (accessLogs.length > 50) accessLogs.pop();
+
+                // Manage failed attempts list
+                if (result.status === 'denied') {
+                    failedAttempts.set(result.uid, result.timestamp);
+                    showToast(`Access Denied: ${result.uid}`, 'error');
+                } else {
+                    showToast(`Access Granted: ${result.uid}`, 'success');
+                }
+
+                // Update UI
+                renderLogs();
+                renderFailedAttempts();
+                
+            } catch (error) {
+                showToast('Network error during scan.', 'error');
+                console.error(error);
+            } finally {
+                // Restore button
+                btn.disabled = false;
+                btn.innerHTML = `<span>Simulate Scan</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>`;
+                input.value = ''; // clear input
+                input.focus();
+            }
+        });
+
+        // Auto-uppercase input as user types
+        document.getElementById('simulate-uid').addEventListener('input', function(e) {
+            this.value = this.value.toUpperCase();
+        });
+
+        /**
+         * ---------------------------------------------------------
+         * INITIALIZATION
+         * ---------------------------------------------------------
+         */
+        // Initial render
+        renderAuthorizedTags();
+        renderFailedAttempts();
+        renderLogs();
+
+    </script>
+</body>
+</html>
